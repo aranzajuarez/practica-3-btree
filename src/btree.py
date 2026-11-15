@@ -1,3 +1,5 @@
+from collections import deque
+
 class NodoB:
     def __init__(self, es_hoja=True):
         # Cada nodo guarda sus llaves (máximo 3) y sus hijos (máximo 4)
@@ -108,3 +110,27 @@ class ArbolB:
             nodo_der.hijos = nodo.hijos[3:5]
 
         return promovida, nodo_izq, nodo_der
+
+    def imprimir_por_niveles(self): #Imprime el árbol nivel por nivel de izquierda a derecha
+        if self.raiz is None:
+            print("Árbol vacío")
+            return
+
+        cola = deque([self.raiz])
+        nivel = 0
+
+        while cola:
+            cantidad_nodos = len(cola)
+            nodos_texto = []
+
+            for _ in range(cantidad_nodos):
+                nodo = cola.popleft()
+                llaves_str = " | ".join(str(k) for k in nodo.llaves)
+                nodos_texto.append(f"[{llaves_str}]")
+
+                # Encolar hijos para el siguiente nivel
+                for hijo in nodo.hijos:
+                    cola.append(hijo)
+
+            print(f"Nivel {nivel}: {' '.join(nodos_texto)}")
+            nivel += 1
