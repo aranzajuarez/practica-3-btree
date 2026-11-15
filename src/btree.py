@@ -134,3 +134,143 @@ class ArbolB:
 
             print(f"Nivel {nivel}: {' '.join(nodos_texto)}")
             nivel += 1
+    
+    def eliminar(self, x):
+        """Elimina la llave x del árbol B manteniendo todas sus propiedades."""
+        if self.raiz is None:
+            return
+
+        # Si la llave no existe en el árbol, no hacemos nada
+        if not self.buscar(x):
+            return
+
+        self._eliminar_recursivo(self.raiz, x)
+
+        # Caso especial: si la raíz quedó vacía y tiene un único hijo, reducimos altura
+        if len(self.raiz.llaves) == 0:
+            if not self.raiz.es_hoja:
+                self.raiz = self.raiz.hijos[0]
+            else:
+                self.raiz = None
+
+    def _eliminar_recursivo(self, nodo, x):
+        i = 0
+        while i < len(nodo.llaves) and x > nodo.llaves[i]:
+            i += 1
+
+        # CASO 1: La llave x está en este nodo
+        if i < len(nodo.llaves) and nodo.llaves[i] == x:
+            if nodo.es_hoja:
+                # Etapa A: Está en una hoja, simplemente la quitamos
+                nodo.llaves.pop(i)
+            else:
+                # Está en un nodo interno
+                hijo_izq = nodo.hijos[i]
+                hijo_der = nodo.hijos[i + 1]
+
+                # Regla de desempate 4: Preferir predecesor si hijo izquierdo tiene > 1 llave
+                if len(hijo_izq.llaves) > 1:
+                    predecesor = self._obtener_predecesor(hijo_izq)
+                    nodo.llaves[i] = predecesor
+                    self._eliminar_recursivo(hijo_izq, predecesor)
+                    if len(hijo_izq.llaves) == 0:
+                        self._reparar_underflow(nodo, i)
+
+                # Si no, intentar sucesor si hijo derecho tiene > 1 llave
+                elif len(hijo_der.llaves) > 1:
+                    sucesor = self._obtener_sucesor(hijo_der)
+                    nodo.llaves[i] = sucesor
+                    self._eliminar_recursivo(hijo_der, sucesor)
+                    if len(hijo_der.llaves) == 0:
+                        self._reparar_underflow(nodo, i + 1)
+
+                # Si ninguno tiene llaves de sobra, fusionar ambos hijos con x
+                else:
+                    self._fusionar(nodo, i)
+                    self._eliminar_recursivo(hijo_izq, x)
+                    if len(hijo_izq.llaves) == 0:
+                        self._reparar_underflow(nodo, i)
+            return
+
+        # CASO 2: La llave x no está aquí; debemos bajar al hijo correspondiente
+        if nodo.es_hoja:
+            return
+
+        self._eliminar_recursivo(nodo.hijos[i], x)
+
+        # Al regresar de la recursión, verificamos si el hijo quedó en underflow (0 llaves)
+        if len(nodo.hijos[i].llaves) == 0:
+            self._reparar_underflow(nodo, i)
+
+    def _obtener_predecesor(self, nodo):
+        """Busca la llave más grande en el subárbol (siempre bajando a la derecha)."""
+        actual = nodo
+        while not actual.es_hoja:
+            actual = actual.hijos[-1]
+        return actual.llaves[-1]
+
+    def _obtener_sucesor(self, nodo):
+        """Busca la llave más pequeña en el subárbol (siempre bajando a la izquierda)."""
+        actual = nodo
+        while not actual.es_hoja:
+            actual = actual.hijos[0]
+        return actual.llaves[0]
+
+    def _reparar_underflow(self, padre, idx_hijo):
+        """Repara un hijo con 0 llaves intentando redistribuir o fusionando."""
+        # 1. Intentar pedir prestado al hermano izquierdo (Regla de desempate 1)
+        if idx_hijo > 0 and len(padre.hijos[idx_hijo - 1].llaves) > 1:
+            self._redistribuir_desde_izquierda(padre, idx_hijo)
+        # 2. Intentar pedir prestado al hermano derecho (Regla de desempate 2)
+        elif idx_hijo < len(padre.hijos) - 1 and len(padre.hijos[idx_hijo + 1].llaves) > 1:
+            self._redistribuir_desde_derecha(padre, idx_hijo)
+        # 3. Ningún hermano puede prestar -> Fusionar (Regla de desempate 3)
+        else:
+            if idx_hijo > 0:
+                # Fusionar con hermano izquierdo
+                self._fusionar(padre, idx_hijo - 1)
+            else:
+                # Fusionar con hermano derecho
+                self._fusionar(padre, idx_hijo)
+
+    def _redistribuir_desde_izquierda(self, padre, idx_hijo):
+        hijo = padre.hijos[idx_hijo]
+        hermano_izq = padre.hijos[idx_hijo - 1]
+
+        # La llave separadora del padre baja al inicio del hijo subocupado
+        hijo.llaves.insert(0, padre.llaves[idx_hijo - 1])
+        # La última llave del hermano izquierdo sube al padre
+        padre.llaves[idx_hijo - 1] = hermano_izq.llaves.pop()
+
+        # Si no son hojas, movemos también el último hijo del hermano izquierdo
+        if not hermano_izq.es_hoja:
+            hijo.hijos.insert(0, hermano_izq.hijos.pop())
+
+    def _redistribuir_desde_derecha(self, padre, idx_hijo):
+        hijo = padre.hijos[idx_hijo]
+        hermano_der = padre.hijos[idx_hijo + 1]
+
+        # La llave separadora del padre baja al final del hijo subocupado
+        hijo.llaves.append(padre.llaves[idx_hijo])
+        # La primera llave del hermano derecho sube al padre
+        padre.llaves[idx_hijo] = hermano_der.llaves.pop(0)
+
+        # Si no son hojas, movemos también el primer hijo del hermano derecho
+        if not hermano_der.es_hoja:
+            hijo.hijos.append(hermano_der.hijos.pop(0))
+
+    def _fusionar(self, padre, idx_separador):
+        """Combina hijos[idx_separador] + padre.llaves[idx_separador] + hijos[idx_separador + 1]."""
+        hijo_izq = padre.hijos[idx_separador]
+        hijo_der = padre.hijos[idx_separador + 1]
+
+        # Bajamos la llave del padre al hijo izquierdo y pegamos las llaves del derecho
+        hijo_izq.llaves.append(padre.llaves.pop(idx_separador))
+        hijo_izq.llaves.extend(hijo_der.llaves)
+
+        # Si tienen hijos, también los unimos
+        if not hijo_izq.es_hoja:
+            hijo_izq.hijos.extend(hijo_der.hijos)
+
+        # Eliminamos la referencia al hermano derecho que ya fue absorbido
+        padre.hijos.pop(idx_separador + 1)
